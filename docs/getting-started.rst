@@ -65,7 +65,7 @@ Using Gammapy as a command line tool
 All available command line tools are listed in the :ref:`scripts_overview` section of the `gammapy.scripts` subpackage.
 
 An example how to perform a spectral fit using the ``gammapy-spectrum`` command line tool
-is available in the :ref:`spectrum_getting_started` section of `gammapy.spectrum`.
+is available in the :ref:`spectrum_command_line_tool` section of `gammapy.spectrum`.
 
 An example how to create an counts maps from an event list is available at TODO.
 
@@ -76,7 +76,7 @@ If you'd like to continue with tutorials to learn Gammapy, go to :ref:`tutorials
 
 To learn about some specific functionality that could be useful for your work,
 start browsing the "Getting Started" section of Gammapy sub-package that
-might be of interest to you (e.g. `gammapy.spectrum`, `gammapy.obs`, `gammapy.catalog`, ...).
+might be of interest to you (e.g. `gammapy.data`, `gammapy.catalog`, `gammapy.spectrum`, ...).
 
 Not sure if Gammapy has the feature you want or how to do what you want?
 Ask for help on the `Gammapy mailing list`_.

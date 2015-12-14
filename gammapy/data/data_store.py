@@ -6,8 +6,8 @@ import numpy as np
 from astropy.table import Table
 from astropy.units import Quantity
 from astropy.io import fits
-from ..extern.pathlib import Path
-from ..obs import ObservationTable
+from .observation import ObservationTable
+from ..utils.scripts import make_path
 
 __all__ = [
     'DataStore',
@@ -25,7 +25,7 @@ class DataStore(object):
         Base directory
     file_table : `~astropy.table.Table`
         File table
-    obs_table : `~gammapy.obs.ObservationTable`
+    obs_table : `~gammapy.data.ObservationTable`
         Observation table
     name : str
         Data store name
@@ -35,7 +35,7 @@ class DataStore(object):
     DEFAULT_NAME = 'noname'
 
     def __init__(self, base_dir, file_table=None, obs_table=None, name=None):
-        self.base_dir = Path(base_dir)
+        self.base_dir = make_path(base_dir)
         self.file_table = file_table
         self.obs_table = obs_table
         self.name = name
@@ -98,6 +98,25 @@ class DataStore(object):
         from .data_manager import DataManager
         dm = DataManager()
         return dm[name]
+
+    @classmethod
+    def from_all(cls, val):
+        """Try different DataStore construtors.
+        
+        Currently tried (in this order)
+        - :func:`~gammapy.data.DataStore.from_dir`
+        - :func:`~gammapy.data.DataStore.from_name`
+        """
+        try:
+            store = cls.from_dir(val)
+        except(OSError):
+            try:
+                store = cls.from_name(val)
+            except(KeyError):
+                raise ValueError('Not able to contruct DataStore'
+                                 ' using key: {}'.format(val))
+                
+        return store
 
     def info(self, stream=None):
         """Print some info"""
@@ -199,7 +218,7 @@ class DataStore(object):
 
         Parameters
         ----------
-        observation_table : `~gammapy.obs.ObservationTable` or None
+        observation_table : `~gammapy.data.ObservationTable` or None
             Observation table (``None`` means select all observations).
         filetypes : list of str
             File types (TODO: document in a central location and reference from here).
@@ -239,7 +258,7 @@ class DataStore(object):
         for ii in range(len(observation_table)):
             obs_id = observation_table['OBS_ID'][ii]
             filename = self.filename(obs_id)
-            if not Path(filename).is_file():
+            if not make_path(filename).is_file():
                 file_available[ii] = False
                 if logger:
                     logger.warning('For OBS_ID = {:06d} the event list file is missing: {}'
@@ -255,8 +274,8 @@ def _find_file(filename, dir):
     - Second tris Path(dir) / filename
     - Raises OSError if both don't exist.
     """
-    path1 = Path(filename)
-    path2 = Path(dir) / filename
+    path1 = make_path(filename)
+    path2 = make_path(dir) / filename
     if path1.is_file():
         filename = path1
     elif path2.is_file():
@@ -281,7 +300,7 @@ def _get_min_energy_threshold(observation_table, data_dir):
 
     Parameters
     ----------
-    observation_table : `~gammapy.obs.ObservationTable`
+    observation_table : `~gammapy.data.ObservationTable`
         Observation list.
     data_dir : str
         Path to the data files.

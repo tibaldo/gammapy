@@ -4,7 +4,7 @@ from __future__ import absolute_import, division, print_function, unicode_litera
 import os
 from astropy.tests.helper import pytest
 from astropy.utils.data import get_pkg_data_filename
-from ..obs import DataManager
+from ..data import DataManager
 
 __all__ = [
     'requires_dependency',
@@ -96,13 +96,10 @@ def requires_data(name):
     return pytest.mark.skipif(skip_it, reason=reason)
 
 
-# TODO: create one or two datastores with simulated data and use that
-# for many Gammapy tests
 # https://pytest.org/latest/tmpdir.html#the-tmpdir-factory-fixture
 @pytest.fixture
 def data_manager():
-    # filename = get_pkg_data_filename('data/data-register.yaml')
-    # return DataManager.from_yaml(filename)
-    dm = DataManager()
-    return dm
+    test_register = gammapy_extra.filename('test_datasets/test-data-register.yaml')
+    return DataManager.from_yaml(test_register)
+    
 
