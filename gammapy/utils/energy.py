@@ -128,7 +128,7 @@ class Energy(Quantity):
 
         if fitsunit is None:
             if unit is not None:
-                log.warn("No unit found in the FITS header."
+                log.warning("No unit found in the FITS header."
                          " Setting it to {0}".format(unit))
                 fitsunit = unit
             else:
@@ -189,7 +189,6 @@ class EnergyBounds(Energy):
     def log_centers(self):
         """Log centers of the energy bounds
         """
-
         center = np.sqrt(self[:-1] * self[1:])
         return center.view(Energy)
 
@@ -205,6 +204,11 @@ class EnergyBounds(Energy):
         """
 
         return self[:-1]
+
+    @property
+    def boundaries(self):
+        """Energy range"""
+        return self[[0, -1]]
 
     @property
     def bands(self):
@@ -272,7 +276,8 @@ class EnergyBounds(Energy):
         """
 
         if hdu.name != 'EBOUNDS':
-            log.warn('This does not seem like an EBOUNDS extension. Are you sure?')
+            log.warning('This does not seem like an EBOUNDS extension. '
+                        'Are you sure?')
 
         header = hdu.header
         unit = header.get('TUNIT2')
@@ -293,13 +298,59 @@ class EnergyBounds(Energy):
         """
 
         if hdu.name != 'MATRIX':
-            log.warn('This does not seem like a MATRIX extension. Are you sure?')
+            log.warning('This does not seem like a MATRIX extension. '
+                        'Are you sure?')
 
         header = hdu.header
         unit = header.get('TUNIT1')
         low = hdu.data['ENERG_LO']
         high = hdu.data['ENERG_HI']
         return cls.from_lower_and_upper_bounds(low, high, unit)
+
+    def bin(self, i):
+        """
+        Return energy bin edges (zero-based numbering)
+
+        Parameters
+        ----------
+        i : int
+            Energy bin
+        """
+        return self[[i, i + 2]]
+
+    def find_energy_bin(self, energy):
+        """Find the bins that contain the specified energy values.
+
+        Parameters
+        ----------
+        energy : `~gammapy.utils.energy.Energy`
+            Array of energies to search for.
+
+        Returns
+        -------
+        bin_index : `~numpy.ndarray`
+            Indices of the energy bins containing the specified energies.
+        """
+        # check that the specified energy is within the boundaries
+        if not self.contains(energy).all():
+            ss_error = "Specified energy {}".format(energy)
+            ss_error += " is outside the boundaries {}".format(self.boundaries)
+            raise ValueError(ss_error)
+
+        bin_index = np.searchsorted(self.upper_bounds, energy)
+
+        return bin_index
+
+    def contains(self, energy):
+        """Check of energy is contained in boundaries
+
+        Parameters
+        ----------
+        energy : `~gammapy.utils.energy.Energy`
+            Array of energies to test
+        """
+        return (energy > self[0]) & (energy < self[-1])
+
 
     def to_table(self, unit=None):
         """Convert to `~astropy.table.Table`.

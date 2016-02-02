@@ -3,16 +3,16 @@
 
 Attributes
 ----------
-radial_distributions : `~astropy.utils.compat.odict.OrderedDict`
+radial_distributions : `~collections.OrderedDict`
     Dictionary of available spatial distributions.
 
     Useful for automatic processing.
 """
 from __future__ import absolute_import, division, print_function, unicode_literals
+from collections import OrderedDict
 import numpy as np
 from numpy import exp, pi, log, abs, cos, sin
 from astropy.units import Quantity
-from astropy.utils.compat.odict import OrderedDict
 from astropy.modeling import Fittable1DModel, Parameter
 from ...utils.coordinates import cartesian, polar
 from ...utils.const import d_sun_to_galactic_center
@@ -490,7 +490,7 @@ class FaucherSpiral(LogSpiral):
         """
         random_state = get_random_state(random_state)
 
-        N = random_state.random_integers(0, 3, radius.size)  # Choose Spiralarm
+        N = random_state.randint(0, 4, radius.size)  # Choose Spiralarm
         theta = self.k[N] * log(radius / self.r_0[N]) + self.theta_0[N]  # Compute angle
         spiralarm = self.spiralarms[N]  # List that contains in wich spiralarm a postion lies
 

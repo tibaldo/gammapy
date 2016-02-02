@@ -1,7 +1,6 @@
 # Licensed under a 3-clause BSD style license - see LICENSE.rst
 from __future__ import (print_function)
 
-from gammapy.extern.pathlib import Path
 from gammapy.spectrum.spectrum_analysis import (
     SpectrumAnalysis,
     run_spectral_fit_using_config,
@@ -11,7 +10,8 @@ from ..utils.scripts import (
     set_up_logging_from_args,
     write_yaml,
     read_yaml,
-    recursive_update_dict
+    recursive_merge_dicts,
+    make_path,
 )
 import logging
 import numpy as np
@@ -33,7 +33,7 @@ def main(args=None):
     args = parser.parse_args(args)
     set_up_logging_from_args(args)
     specpipe = SpectrumPipe.from_configfile(args.config_file)
-    print(specpipe.info())
+    specpipe.write_configs()
     specpipe.run()
 
 
@@ -52,7 +52,7 @@ class SpectrumPipe(object):
 
     @classmethod
     def from_configfile(cls, filename, auto_outdir=True):
-        """Create `~gammapy.script.Spectrumpipe` from config file
+        """Create `~gammapy.script.SpectrumPipe` from config file
 
         Parameters
         ----------
@@ -62,14 +62,27 @@ class SpectrumPipe(object):
             Set outdir explicitly for every analysis
         """
         config = read_yaml(filename, log)
+        return cls.from_config(config, auto_outdir=auto_outdir)
+
+    @classmethod
+    def from_config(cls, config, auto_outdir=True):
+        """Create `~gammapy.script.SpectrumPipe` from config dict
+
+        Parameters
+        ----------
+        config : dict
+            config dict
+        auto_outdir : bool [True]
+            Set outdir explicitly for every analysis
+        """
         base_config = config.pop('base_config')
         analist = list([])
-        
+
         for analysis in config.keys():
-            log.info("Creating analysis {}".format(analysis))
+            log.info("Generating config for analysis {}".format(analysis))
             anaconf = base_config.copy()
             temp = config[analysis]
-            anaconf = recursive_update_dict(anaconf, temp)
+            anaconf = recursive_merge_dicts(anaconf, temp)
             if auto_outdir:
                 anaconf['general']['outdir'] = analysis
 
@@ -89,10 +102,11 @@ class SpectrumPipe(object):
 
     def write_configs(self):
         """Write analysis configs to disc"""
-        for ana, conf in zip(self.analysis, self.config):
-            val = ana.base_dir / 'config.yaml'
-            val.basedir.mkdir(exist_ok=True)
-            write_yaml(conf, val, logger=log)
+        for conf in self.config:
+            outdir = make_path(conf['general']['outdir'])
+            outdir.mkdir(exist_ok=True)
+            outfile = outdir / 'config.yaml'
+            write_yaml(conf, str(outfile), logger=log)
 
     def info(self):
         """
@@ -146,8 +160,8 @@ class SpectrumPipe(object):
             try:
                 sec = ref[target]
             except KeyError:
-                log.warn('No reference values found in {0} for '
-                         'analysis {1}'.format(filename, target))
+                log.warning('No reference values found in {0} for '
+                            'analysis {1}'.format(filename, target))
 
             else:
                 labels.append(target)

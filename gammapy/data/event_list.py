@@ -8,6 +8,8 @@ from astropy.units import Quantity
 from astropy.time import Time
 from astropy.coordinates import SkyCoord, Angle, AltAz
 from astropy.table import Table
+
+from gammapy.utils.scripts import make_path
 from ..extern.pathlib import Path
 from ..image import wcs_histogram2d
 from ..time import time_ref_from_dict
@@ -109,6 +111,20 @@ class EventList(Table):
         lon, lat = self['GLON'], self['GLAT']
         return SkyCoord(lon, lat, unit='deg', frame='galactic')
 
+    @classmethod
+    def read(cls, filename, **kwargs):
+        """Read :ref:`gadf:iact-events`
+
+        Parameters
+        ----------
+        filename: `~gammapy.extern.pathlib.Path`, str
+            File to read
+        """
+        filename = make_path(filename)
+        if 'hdu' not in kwargs:
+            kwargs.update(hdu='EVENTS')
+        return super(EventList, cls).read(str(filename), **kwargs)
+
     def add_galactic_columns(self):
         """Add Galactic coordinate columns to the table.
 
@@ -132,6 +148,14 @@ class EventList(Table):
 
         lon, lat = self['AZ'], self['ALT']
         return SkyCoord(lon, lat, unit='deg', frame=altaz_frame)
+
+    @property
+    def offset(self):
+        """Event offset (`~astropy.coordinates.Angle`)"""
+        position = self.radec
+        center = self.pointing_radec
+        offset = center.separation(position)
+        return Angle(offset, unit='deg')
 
     @property
     def energy(self):
@@ -437,7 +461,7 @@ class EventListDataset(object):
         """Read event list from FITS file.
         """
         # return EventList.from_hdu_list(fits.open(filename))
-        event_list = EventList.read(filename, hdu='EVENTS')
+        event_list = EventList.read(filename)
         try:
             telescope_array = TelescopeArray.read(filename, hdu='TELARRAY')
         except KeyError:
@@ -620,14 +644,14 @@ class EventListDatasetChecker(object):
         Logger to use (use module-level Gammapy logger by default)
     """
     _AVAILABLE_CHECKS = OrderedDict(
-            misc='check_misc',
-            times='check_times',
-            coordinates='check_coordinates',
+        misc='check_misc',
+        times='check_times',
+        coordinates='check_coordinates',
     )
 
     accuracy = OrderedDict(
-            angle=Angle('1 arcsec'),
-            time=Quantity(1, 'microsecond'),
+        angle=Angle('1 arcsec'),
+        time=Quantity(1, 'microsecond'),
 
     )
 
@@ -712,9 +736,9 @@ class EventListDatasetChecker(object):
 
         # http://fermi.gsfc.nasa.gov/ssc/data/analysis/documentation/Cicerone/Cicerone_Data/Time_in_ScienceTools.html
         telescope_met_refs = OrderedDict(
-                FERMI=Time('2001-01-01T00:00:00'),
-                HESS=Time('2000-01-01T12:00:00.000'),
-                # TODO: Once CTA has specified their MET reference add check here
+            FERMI=Time('2001-01-01T00:00:00'),
+            HESS=Time('2000-01-01T12:00:00.000'),
+            # TODO: Once CTA has specified their MET reference add check here
         )
 
         telescope = self.dset.event_list.meta['TELESCOP']

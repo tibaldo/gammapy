@@ -115,7 +115,7 @@ entry_points['console_scripts'] = [
     'gammapy-detect-iterative = gammapy.scripts.detect_iterative:detect_iterative_main',
 
     'gammapy-catalog-browse = gammapy.scripts.catalog_browser:main',
-    'gammapy-catalog-query = gammapy.scripts.catalog_query:catalog_query_main',
+    'gammapy-catalog-query = gammapy.scripts.catalog_query:cli',
     'gammapy-catalog-simulate = gammapy.scripts.catalog_simulate:catalog_simulate_main',
 ]
 
@@ -145,13 +145,13 @@ setup(name=PACKAGENAME,
       # To find out if everything works run the Gammapy tests.
       install_requires=[
           'setuptools',
-          'numpy>=1.6',
-          'astropy>=1.0',
+          'numpy>=1.8',
+          'astropy>=1.1',
       ],
       extras_require=dict(
           analysis=[
               'click',
-              'scipy>=0.14',
+              'scipy>=0.15',
               'scikit-image>=0.10',
               'photutils>=0.1',
               'reproject',

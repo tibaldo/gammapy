@@ -106,15 +106,21 @@ class DataStore(object):
         Currently tried (in this order)
         - :func:`~gammapy.data.DataStore.from_dir`
         - :func:`~gammapy.data.DataStore.from_name`
+
+        Parameters
+        ----------
+        val : str
+            Key to construct DataStore from
         """
         try:
             store = cls.from_dir(val)
-        except(OSError):
+        except OSError as e1:
             try:
                 store = cls.from_name(val)
-            except(KeyError):
-                raise ValueError('Not able to contruct DataStore'
-                                 ' using key: {}'.format(val))
+            except KeyError as e2:
+                raise ValueError('Not able to contruct DataStore using key:'
+                                 ' {0}.\nErrors\nfrom_dir: {1}\nfrom_name: {2}'
+                                 .format(val, e1, e2))
                 
         return store
 
@@ -203,6 +209,25 @@ class DataStore(object):
         else:
             raise ValueError('Invalid filetype.')
 
+    def load_all(self, filetype):
+        """Load a given file type for all observations
+
+        Parameters
+        ----------
+        filetype : {'events', 'aeff', 'edisp', 'psf', 'background'}
+            Type of file.
+
+        Returns
+        -------
+        list : python list of object
+            Object depends on type, e.g. for `events` it is a list of `~gammapy.data.EventList`.
+        """
+        data_lists = []
+        for obs_id in self.obs_table['OBS_ID']:
+            data_list = self.load(obs_id, filetype)
+            data_lists.append(data_list)
+        return data_lists
+        
     def check_integrity(self, logger):
         """Check integrity, i.e. whether index table and files match.
         """

@@ -11,7 +11,7 @@ from ...datasets import gammapy_extra
 @requires_data('gammapy-extra')
 def test_EventList():
     filename = gammapy_extra.filename('test_datasets/unbundled/hess/run_0023037_hard_eventlist.fits.gz')
-    event_list = EventList.read(filename, hdu='EVENTS')
+    event_list = EventList.read(filename)
 
     assert len(event_list) == 49
     assert 'Event list info' in event_list.summary
@@ -19,6 +19,7 @@ def test_EventList():
     assert event_list.radec[0].to_string() == '82.7068 19.8186'
     assert event_list.galactic[0].to_string() == '185.956 -7.69277'
     assert event_list.altaz[0].to_string() == '46.2059 31.2001'
+    assert_allclose(event_list.offset[0].value, 1.904497742652893, rtol=1e-5)
     assert '{:1.5f}'.format(event_list.energy[0]) == '11.64355 TeV'
 
     lon, lat, height = event_list.observatory_earth_location.to_geodetic()

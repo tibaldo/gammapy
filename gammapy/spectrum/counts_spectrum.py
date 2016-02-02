@@ -3,11 +3,14 @@ from __future__ import (print_function)
 
 import numpy as np
 from astropy import log
+
+from gammapy.utils.scripts import make_path
 from ..utils.energy import Energy, EnergyBounds
 import datetime
 from astropy.io import fits
 from astropy.units import Quantity
 from gammapy.data import EventList, EventListDataset
+from gammapy.extern.pathlib import Path
 
 __all__ = ['CountsSpectrum']
 
@@ -20,7 +23,7 @@ class CountsSpectrum(object):
 
     counts : `~numpy.array`, list
         Counts
-    energy : `~gammapy.utils.energy.Energy`, `~gammapy.utils.energy.EnergyBounds`.
+    energy : `~gammapy.utils.energy.EnergyBounds`
         Energy axis
     livetime : `~astropy.units.Quantiy`
         Livetime of the dataset
@@ -44,25 +47,16 @@ class CountsSpectrum(object):
             raise ValueError("Dimension of {0} and {1} do not"
                              " match".format(counts, energy))
 
-        if not isinstance(energy, Energy):
-            raise ValueError("energy must be an Energy object")
-
         self.counts = np.asarray(counts)
 
-        if isinstance(energy, EnergyBounds):
-            self.energy = energy.log_centers
-        else:
-            self.energy = energy
+        self.energy_bounds = EnergyBounds(energy)
 
-        if livetime is not None:
-            self._livetime = livetime
-        else:
-            self._livetime = Quantity(0, 's')
+        self._livetime = Quantity(0, 's') if livetime is None else livetime
         self._backscal = backscal
-        self.channels = np.arange(1, self.energy.nbins + 1, 1)
+        self.channels = np.arange(1, self.energy_bounds.nbins + 1, 1)
 
     @property
-    def entries(self):
+    def total_counts(self):
         """Total number of counts
         """
         return self.counts.sum()
@@ -83,16 +77,55 @@ class CountsSpectrum(object):
     def backscal(self, value):
         self._backscal = value
 
+    def __add__(self, other):
+        """Add two counts spectra and returns new instance
+
+        The two spectra need to have the same binning
+        """
+        if (self.energy_bounds != other.energy_bounds).all():
+            raise ValueError("Cannot add counts spectra with different binning")
+        counts = self.counts + other.counts
+        livetime = self.livetime + other.livetime
+        return CountsSpectrum(counts, self.energy_bounds, livetime=livetime)
+
+    def __mul__(self, other):
+        """Scale counts by a factor"""
+        temp = self.counts * other
+        return CountsSpectrum(temp, self.energy_bounds, livetime=self.livetime)
+
     @classmethod
-    def from_fits(cls, hdu):
-        """Read SPECTRUM fits extension from pha file (`CountsSpectrum`).
+    def read(cls, phafile, rmffile=None):
+        """Read PHA fits file
+
+        The energy binning is not contained in the PHA standard. Therefore is
+        is inferred from the corresponding RMF EBOUNDS extension.
 
         Parameters
         ----------
-        hdu : `~astropy.io.fits.BinTableHDU`
-            ``SPECTRUM`` extensions.
+        phafile : str
+            PHA file with ``SPECTRUM`` extension
+        rmffile : str
+            RMF file with ``EBOUNDS`` extennsion, optional
         """
-        pass
+        phafile = make_path(phafile)
+        spectrum = fits.open(str(phafile))['SPECTRUM']
+        counts = [val[1] for val in spectrum.data]
+        if rmffile is None:
+            val = spectrum.header['RESPFILE']
+            if val == '':
+                raise ValueError('RMF file not set in PHA header. '
+                                 'Please provide RMF file for energy binning')
+            parts = phafile.parts[:-1]
+            rmffile = Path.cwd()
+            for part in parts:
+                rmffile = rmffile.joinpath(part)
+            rmffile = rmffile.joinpath(val)
+
+        rmffile = make_path(rmffile)
+        ebounds = fits.open(str(rmffile))['EBOUNDS']
+        bins = EnergyBounds.from_ebounds(ebounds)
+        livetime = Quantity(0, 's')
+        return cls(counts, bins, livetime=livetime)
 
     @classmethod
     def from_eventlist(cls, event_list, bins):
@@ -123,29 +156,41 @@ class CountsSpectrum(object):
         return cls(val, bins, livetime)
 
     def write(self, filename, bkg=None, corr=None, rmf=None, arf=None,
+              offset=None, muon_eff=None, zenith=None, on_region=None,
               *args, **kwargs):
         """Write PHA to FITS file.
 
-        Calls `~astropy.io.fits.HDUList.writeto`, forwarding all arguments.
+        Calls `gammapy.spectrum.CountsSpectrum.to_fits` and
+        `~astropy.io.fits.HDUList.writeto`, forwarding all arguments.
+        """
+        self.to_fits(bkg=bkg, corr=corr, rmf=rmf, arf=arf, offset=offset,
+                     muon_eff=muon_eff, zenith=zenith,
+                     on_region=on_region).writeto(filename, *args, **kwargs)
+
+    def to_fits(self, bkg=None, corr=None, rmf=None, arf=None, offset=None,
+                muon_eff=None, zenith=None, on_region=None):
+        """Convert to FITS format
+
+        This can be used to write a :ref:`gadf:ogip-pha`
 
         Parameters
         ----------
-        arf : str
-            ARF file to be written into FITS header
-        rmf : str
-            RMF file to be written into FITS header
-        corr : str
-            CORR file to be written into FITS header
         bkg : str
-            BKG file to be written into FITS header
-        filename : str
-            File to be written
-        """
-        self.to_fits(bkg=bkg, corr=corr, rmf=rmf, arf=arf).writeto(
-            filename, *args, **kwargs)
-
-    def to_fits(self, bkg=None, corr=None, rmf=None, arf=None):
-        """Output OGIP pha file
+            :ref:`gadf:ogip-bkg` containing the corresponding background spectrum
+        corr : str
+            name of the corresponding correction file
+        rmf : str
+            :ref:`gadf:ogip-rmf` containing the corresponding energy resolution
+        arf : str
+            :ref:`gadf:ogip-arf` containing the corresponding effective area
+        offset : `~astropy.coordinates.Angle`
+            Angular distance between target and pointing position
+        muon_eff : float
+            Muon efficiency
+        zenith : `~astropy.coordinates.Angle`
+            Zenith angle
+        on_region : `~gammapy.region.SkyCircleRegion`
+            Region used to extract the spectrum
 
         Returns
         -------
@@ -168,7 +213,6 @@ class CountsSpectrum(object):
         hdu = fits.BinTableHDU.from_columns(cols)
         header = hdu.header
 
-        # TODO: option to store meta info in the class
         header['EXTNAME'] = 'SPECTRUM', 'name of this binary table extension'
         header['TELESCOP'] = 'DUMMY', 'Telescope (mission) name'
         header['INSTRUME'] = 'DUMMY', 'Instrument name'
@@ -185,9 +229,9 @@ class CountsSpectrum(object):
         header['HDUVERS '] = '1.2.1', 'Version number of the format'
 
         header['CHANTYPE'] = 'PHA', 'Channels assigned by detector electronics'
-        header['DETCHANS'] = self.energy.nbins, 'Total number of detector channels available'
+        header['DETCHANS'] = self.channels.size, 'Total number of detector channels available'
         header['TLMIN1'] = 1, 'Lowest Legal channel number'
-        header['TLMAX1'] = self.energy.nbins, 'Highest Legal channel number'
+        header['TLMAX1'] = self.channels[-1], 'Highest Legal channel number'
 
         header['XFLT0001'] = 'none', 'XSPEC selection filter description'
 
@@ -203,7 +247,7 @@ class CountsSpectrum(object):
 
         header['QUALITY '] = 0, 'No data quality information specified'
 
-        header['AREASCAL'] = 1., 'Nominal effective area'
+        header['AREASCAL'] = 1., 'Area scaling factor'
         header['BACKSCAL'] = self.backscal, 'Background scale factor'
         header['CORRSCAL'] = 0., 'Correlation scale factor'
 
@@ -212,9 +256,20 @@ class CountsSpectrum(object):
         header['DATE'] = datetime.datetime.today().strftime('%Y-%m-%d'), 'FITS file creation date (yyyy-mm-dd)'
         header['PHAVERSN'] = '1992a', 'OGIP memo number for file format'
 
+        if offset is not None:
+            header['OFFSET'] = offset.to('deg').value, 'Target offset from pointing position'
+        if muon_eff is not None:
+            header['MUONEFF'] = muon_eff, 'Muon efficiency'
+        if zenith is not None:
+            header['ZENITH'] = zenith.to('deg').value, 'Zenith angle'
+        if on_region is not None:
+            header['RA-OBJ'] = on_region.pos.icrs.ra.value, 'Right ascension of the target'
+            header['DEC-OBJ'] = on_region.pos.icrs.dec.value , 'Declination of the target'
+            header['ON-RAD'] = on_region.radius.to('deg').value, 'Radius of the circular spectral extraction region'
+
         return hdu
 
-    def plot(self, ax=None, filename=None, **kwargs):
+    def plot(self, ax=None, filename=None, weight=1, **kwargs):
         """
         Plot counts vector
 
@@ -226,6 +281,8 @@ class CountsSpectrum(object):
             Axis instance to be used for the plot
         filename : str (optional)
             File to save the plot to
+        weight : float
+            Weighting factor for the counts
 
         Returns
         -------
@@ -235,10 +292,10 @@ class CountsSpectrum(object):
         import matplotlib.pyplot as plt
 
         ax = plt.gca() if ax is None else ax
-
-        plt.hist(self.energy.value, len(self.energy.value),
-                 weights=self.counts, **kwargs)
-        plt.xlabel('Energy [{0}]'.format(self.energy.unit))
+        w = self.counts * weight
+        plt.hist(self.energy_bounds.log_centers, bins=self.energy_bounds,
+                 weights=w, **kwargs)
+        plt.xlabel('Energy [{0}]'.format(self.energy_bounds.unit))
         plt.ylabel('Counts')
         if filename is not None:
             plt.savefig(filename)

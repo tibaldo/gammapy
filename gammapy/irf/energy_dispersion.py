@@ -295,7 +295,8 @@ class EnergyDispersion(object):
     def to_table(self):
         """Convert to `~astropy.table.Table`.
 
-        The ouput table is in the OGIP RMF format
+        The ouput table is in the OGIP RMF format.
+        http://heasarc.gsfc.nasa.gov/docs/heasarc/caldb/docs/memos/cal_gen_92_002/cal_gen_92_002.html#Tab:1
         """
         table = Table()
 
@@ -304,13 +305,14 @@ class EnergyDispersion(object):
         f_chan = np.ndarray(dtype=np.object, shape=rows)
         n_chan = np.ndarray(dtype=np.object, shape=rows)
         matrix = np.ndarray(dtype=np.object, shape=rows)
-
+        
         # Make RMF type matrix
         for i, row in enumerate(self.pdf_matrix):
             subsets = 1
             pos = np.nonzero(row)[0]
             borders = np.where(np.diff(pos) != 1)[0]
-            groups = np.asarray(np.split(pos, borders))
+            #add 1 to borders for correct behaviour of np.split
+            groups = np.asarray(np.split(pos, borders + 1))
             n_grp_temp = groups.shape[0] if groups.size > 0 else 1
             n_chan_temp = np.asarray([val.size for val in groups])
             try:
@@ -661,7 +663,7 @@ class EnergyDispersion2D(object):
                 self.migra_lo * e_true, self.migra_hi * e_true)
             migra = self.migra
 
-        # Translate given e_reco band to migra vector
+        # Translate given e_reco binning to migra at bin center
         else:
             e_reco = EnergyBounds(e_reco)
             center = e_reco.log_centers
@@ -669,9 +671,8 @@ class EnergyDispersion2D(object):
 
         val = self.evaluate(offset=offset, e_true=e_true, migra=migra)
 
-        # Integrate e_reco bins
-        band = e_reco.bands
-        rv = (val / e_true) * band
+        # Multiply by migra bin width (~Integration)
+        rv = val * (e_reco.bands / e_true)
 
         return rv.value
 

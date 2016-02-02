@@ -15,10 +15,10 @@ center = SkyCoord(83.63, 22.01, unit='deg', frame='icrs')
 radius = Angle('0.3 deg')
 on_region = SkyCircleRegion(pos=center, radius=radius)
 
-bkg_method = dict(type='reflected')
+bkg_method = dict(type='reflected', n_min=3)
 
-exclusion_file = gammapy_extra.filename("test_datasets/spectrum/"
-                                        "dummy_exclusion.fits")
+exclusion_file = gammapy_extra.filename("datasets/exclusion_masks/"
+                                        "tevcat_exclusion.fits")
 excl = ExclusionMask.from_fits(exclusion_file)
 
 bounds = EnergyBounds.equal_log_spacing(1, 10, 40, unit='TeV')
